@@ -1,0 +1,32 @@
+{
+  "parser": "babel-eslint",
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:react/recommended",
+    "plugin:import/errors",
+    "plugin:import/warnings"
+  ],
+  "plugins": [
+    "import"
+  ],
+  "settings": {
+    "react": {
+      "version": "detect"
+    }
+  },
+  "rules": {
+    "no-console": 1,
+    "require-atomic-updates": 0,
+    "no-case-declarations": 0,
+    "react/display-name": 0,
+    "react/prop-types": 0
+  },
+  "globals": {
+    "Promise": false,
+    "__static": false
+  }
+}
