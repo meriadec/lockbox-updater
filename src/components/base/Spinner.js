@@ -13,7 +13,7 @@ const rotating = keyframes`
 
 const Rotating = styled.div`
   font-size: 16px;
-  display: flex;
+  display: inline-flex;
   padding: 5px 0;
   animation: 750ms linear ${rotating} infinite;
 `;

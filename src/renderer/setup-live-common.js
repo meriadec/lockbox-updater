@@ -6,7 +6,7 @@ import { setEnv } from "@ledgerhq/live-common/lib/env";
 
 import HidProxy from "./HidProxy";
 
-setEnv("FORCE_PROVIDER", 11);
+setEnv("FORCE_PROVIDER", 6);
 
 listenLogs((...log) => {
   console.log(...log); // eslint-disable-line no-console

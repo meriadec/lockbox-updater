@@ -8,8 +8,8 @@ import {
 } from "react-icons/fa";
 
 import { useDeviceInfo } from "./DeviceInfoContext";
-// import Device from "./Device";
 import AppsList from "./AppsList";
+import InstallFirmware from "./InstallFirmware";
 import Spinner from "./base/Spinner";
 import DisplayError from "./base/DisplayError";
 import Button from "./base/Button";
@@ -17,6 +17,7 @@ import colors from "../colors";
 
 const INITIAL_STATE = {
   isFetchingFirmware: false,
+  isInstallingFirmware: false,
   firmware: undefined,
   error: null,
 };
@@ -29,6 +30,8 @@ const reducer = (state, action) => {
       return { ...state, isFetchingFirmware: false };
     case "SET_FIRMWARE":
       return { ...state, firmware: action.payload };
+    case "SET_INSTALLING_FIRMWARE":
+      return { ...state, isInstallingFirmware: action.payload };
     case "ERROR":
       return { ...state, error: action.payload };
     default:
@@ -41,6 +44,7 @@ export default () => {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
 
   useEffect(() => {
+    if (deviceInfo.isBootloader) return;
     let isUnmounted = false;
     const effect = async () => {
       try {
@@ -65,21 +69,28 @@ export default () => {
     };
   }, [deviceInfo, dispatch]);
 
-  // <Device wire="wired" />
-  return (
-    <Container>
-      <FirmwareInfo
-        isFetching={state.isFetchingFirmware}
-        firmware={state.firmware}
-        error={state.error}
-        onInstallFirm={() => {
-          console.log(state.firmware);
-          alert("installing firmware");
-        }}
+  const inner =
+    state.isInstallingFirmware || deviceInfo.isBootloader ? (
+      <InstallFirmware
+        onFinish={() =>
+          dispatch({ type: "SET_INSTALLING_FIRMWARE", payload: false })
+        }
       />
-      <AppsList />
-    </Container>
-  );
+    ) : (
+      <>
+        <FirmwareInfo
+          isFetching={state.isFetchingFirmware}
+          firmware={state.firmware}
+          error={state.error}
+          onInstallFirm={() =>
+            dispatch({ type: "SET_INSTALLING_FIRMWARE", payload: true })
+          }
+        />
+        {!deviceInfo.isOSU && <AppsList />}
+      </>
+    );
+
+  return <Container>{inner}</Container>;
 };
 
 const FirmwareInfo = ({ isFetching, firmware, error, onInstallFirm }) => {
@@ -94,7 +105,9 @@ const FirmwareInfo = ({ isFetching, firmware, error, onInstallFirm }) => {
       }}
     >
       <Label style={{ marginRight: 5 }}>Firmware version:</Label>
-      <Badge style={{ marginRight: 5 }}>{deviceInfo.version}</Badge>
+      <Badge style={{ marginRight: 5 }}>
+        {deviceInfo.isOSU ? "Update not finished" : deviceInfo.version}
+      </Badge>
       <div style={{ fontSize: 13 }}>
         {isFetching ? (
           <div style={{ display: "flex", alignItems: "center" }}>

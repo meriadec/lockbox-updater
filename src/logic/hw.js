@@ -1,15 +1,22 @@
+import React from "react";
 import manager from "@ledgerhq/live-common/lib/manager";
-import { from, of, concat, throwError, combineLatest } from "rxjs";
+import { from, of, concat, combineLatest, empty } from "rxjs";
 import { concatMap, tap, delay } from "rxjs/operators";
 import { withDevicePolling } from "@ledgerhq/live-common/lib/hw/deviceAccess";
-import firmwareUpdatePrepare from "@ledgerhq/live-common/lib/hw/firmwareUpdate-prepare";
-import firmwareUpdateMain from "@ledgerhq/live-common/lib/hw/firmwareUpdate-main";
 import getDeviceInfo from "@ledgerhq/live-common/lib/hw/getDeviceInfo";
 import live_installApp from "@ledgerhq/live-common/lib/hw/installApp";
 import live_uninstallApp from "@ledgerhq/live-common/lib/hw/uninstallApp";
+import firmwareUpdatePrepare from "@ledgerhq/live-common/lib/hw/firmwareUpdate-prepare";
+import firmwareUpdateMain from "@ledgerhq/live-common/lib/hw/firmwareUpdate-main";
+import firmwareUpdateRepair from "@ledgerhq/live-common/lib/hw/firmwareUpdate-repair";
 
 import remapError from "./remapError";
 import colors from "../colors";
+
+const getLatestFirmware = infos =>
+  from(manager.getLatestFirmwareForDevice(infos));
+
+const wait2s = of({ type: "wait" }).pipe(delay(2000));
 
 export const withDeviceInfo = withDevicePolling("")(
   transport => from(getDeviceInfo(transport)),
@@ -22,17 +29,32 @@ export const withDeviceInfo = withDevicePolling("")(
   },
 );
 
-const ALREADY_UP_TO_DATE = "Firmware is already up-to-date.";
+const waitForBootloader = withDeviceInfo.pipe(
+  concatMap(deviceInfo =>
+    deviceInfo.isBootloader ? empty() : concat(wait2s, waitForBootloader),
+  ),
+);
 
 export function installFirmware({ addLog, setStep, subscribeProgress }) {
   addLog("Fetching latest firmware...");
   const installSub = withDeviceInfo.pipe(
-    concatMap(infos =>
-      combineLatest(of(infos), from(manager.getLatestFirmwareForDevice(infos))),
-    ),
+    concatMap(infos => {
+      return combineLatest(
+        of(infos),
+        infos.isBootloader
+          ? concat(
+              firmwareUpdateRepair({ version: null }),
+              withDeviceInfo.pipe(getLatestFirmware),
+            )
+          : getLatestFirmware(infos),
+      );
+    }),
     concatMap(([infos, latestFirmware]) => {
       if (!latestFirmware) {
-        return throwError(new Error(ALREADY_UP_TO_DATE));
+        addLog(`Firmware is up to date (${infos.version})`, {
+          color: colors.green,
+        });
+        return empty();
       }
       console.log(`INFOS`, infos);
       console.log(`LATEST FIRMWARE`, latestFirmware);
@@ -41,22 +63,57 @@ export function installFirmware({ addLog, setStep, subscribeProgress }) {
             of(null).pipe(
               tap(() => {
                 setStep("firmware");
+                if (latestFirmware.shouldFlashMCU) {
+                  setStep("disconnect-mcu");
+                  addLog(
+                    <>
+                      Please <b>disconnect</b> your device, and reconnect it
+                      while pressing left button
+                    </>,
+                    { color: colors.orange },
+                  );
+                }
+              }),
+            ),
+            latestFirmware.shouldFlashMCU ? waitForBootloader : empty(),
+            of(null).pipe(
+              tap(() => {
                 addLog("Installing final firmware...");
               }),
             ),
             firmwareUpdateMain("", latestFirmware).pipe(
+              tap(({ progress }) => {
+                if (progress === 1) {
+                  addLog("Tap your PIN to access your device.");
+                }
+              }),
               tap(subscribeProgress("firmware-progress")),
             ),
+            of(delay(2000)),
+            installSub,
           )
         : concat(
             of(null).pipe(
               tap(() => {
                 setStep("osu");
                 addLog("Installing OS updater...");
-                addLog("Please allow Ledger Manager on your device.");
+                addLog("Allow Lockbox manager on your device if asked", {
+                  color: colors.orange,
+                });
               }),
             ),
             firmwareUpdatePrepare("", latestFirmware).pipe(
+              tap(e => {
+                if (e.displayedOnDevice) {
+                  addLog(
+                    "Accept the update on your device, and tap your PIN code",
+                    {
+                      color: colors.orange,
+                    },
+                  );
+                  setStep("osu-accept");
+                }
+              }),
               tap(subscribeProgress("osu-progress")),
             ),
             of(null).pipe(

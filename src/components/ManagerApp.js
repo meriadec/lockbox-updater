@@ -16,7 +16,9 @@ export default ({ app, onInstall, onUninstall }) => {
         <Button size="small" onClick={onUninstall}>
           <FaTrash />
         </Button>
-        <Button variant="primary" size="small" onClick={onInstall}>Install</Button>
+        <Button variant="primary" size="small" onClick={onInstall}>
+          Install
+        </Button>
       </ButtonsContainer>
     </Container>
   );

@@ -84,6 +84,7 @@ const IconContainer = styled.div`
 `;
 
 const StyledButton = styled.div`
+  display: inline-block;
   position: relative;
   border-radius: 4px;
   background-color: ${p =>
